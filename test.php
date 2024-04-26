@@ -1,3 +1,1 @@
-<?php
- echo "a";
- ?>
+print("hello_world");
