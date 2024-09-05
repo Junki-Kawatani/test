@@ -17,6 +17,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
+      # ChatGPTのコードレビューを実行し、その出力をキャプチャする
       - name: Run GPT-based code review
         id: run_review
         uses: anc95/ChatGPT-CodeReview@main
@@ -30,18 +31,21 @@ jobs:
             プルリクエストに含まれるコードにおいて、バグ、改善点、パフォーマンス問題がないか確認し、必要であれば指摘してください。
           top_p: 1
           temperature: 1
-          max_tokens: 10000
-          MAX_PATCH_LENGTH: 10000  # コード差分の最大長
+          # max_tokens: を取り除き、制限なしに
 
+      # ChatGPTの出力をプルリクエストにコメントとして投稿する
       - name: Post review comment if successful
         if: success()  # AIレビューが成功した場合に実行
         run: |
-          if [ -z "${{ steps.run_review.outputs.review_result }}" ]; then
+          # 標準出力から結果を取得
+          review_result=$(cat $GITHUB_WORKSPACE/output.txt)
+          
+          if [ -z "$review_result" ]; then
             review_result="AIレビュー結果がありませんでした。"
-          else
-            review_result=${{ steps.run_review.outputs.review_result }}
           fi
+
           echo "Review result: $review_result"
+          
           curl -X POST \
             -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
             -d "{\"body\": \"$review_result\"}" \
