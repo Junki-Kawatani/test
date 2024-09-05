@@ -1,50 +1,33 @@
-name: Review PR
+name: Code Review on Request
+
+permissions:
+  contents: read
+  pull-requests: write
 
 on:
   issue_comment:
-    types: [created]
-  pull_request:
-    types: [opened, edited, reopened]
+    types: [created]  # コメントが作成されたときにトリガー
 
 jobs:
-  review_pr:
-    # コメントの本文に `@review` または `/review` が含まれている場合に実行
-    if: contains(github.event.comment.body, '@review') || contains(github.event.comment.body, '/review')
+  review:
+    if: contains(github.event.comment.body, '/review')  # コメントに /review が含まれているかをチェック
     runs-on: ubuntu-latest
-    name: Checkout code & Review PR
     steps:
-      # PRのターゲットブランチをチェックアウト
-      - name: Checkout PR branch
+      - name: Checkout code
         uses: actions/checkout@v3
-        with:
-          ref: ${{ github.event.pull_request.head.ref }}
-          repository: ${{ github.event.pull_request.head.repo.full_name }}
-
-      # Pythonのセットアップが必要な場合
-      - uses: actions/setup-python@v2
-        with:
-          python-version: '3.x'
-
-      - uses: kentakozuka/github-ai-review@main
-        with:
-          PERSONAL_ACCESS_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+      
+      - name: Run GPT-based code review
+        uses: anc95/ChatGPT-CodeReview@main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          MODEL_NAME: 'gpt-4'
+          LANGUAGE: Japanese  # 日本語でレビューを返す
+          OPENAI_API_ENDPOINT: https://api.openai.com/v1
+          MODEL: gpt-4  # 使用するモデル
+          PROMPT: |
+            プルリクエストに含まれるコードにおいて、バグ、改善点、パフォーマンス問題がないか確認し、必要であれば指摘してください。
+          top_p: 1
+          temperature: 1
+          max_tokens: 10000
+          MAX_PATCH_LENGTH: 10000  # コード差分の最大長
 
-      # 成功時のコメントを投稿
-      - name: Post success comment
-        if: success()
-        run: |
-          curl -X POST \
-            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-            -d '{"body": "AIレビューが成功しました"}' \
-            https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.issue.number }}/comments
-
-      # 失敗時にコメントを投稿
-      - name: Post failure comment
-        if: failure()
-        run: |
-          curl -X POST \
-            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-            -d '{"body": "AIレビューに失敗しました。エラーを確認してください。"}' \
-            https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.issue.number }}/comments
